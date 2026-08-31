@@ -37,6 +37,16 @@ export function travelDistance(
     : n - Math.max(...relevant.map((w) => w.col));
 }
 
+export function safeCellsForDirections(
+  directions: Direction[],
+  walls: Wall[],
+  n = 5,
+): Set<string> {
+  return directions
+    .map((direction) => safeCellsForDirection(direction, walls, n))
+    .reduce((acc, safe) => new Set([...acc].filter((id) => safe.has(id))));
+}
+
 export function safeCellsForDirection(
   direction: Direction,
   walls: Wall[],

@@ -1,11 +1,12 @@
 // The only module that touches the DOM: reads a GameState and writes it out.
 // Never mutates state --- game-logic.ts owns that.
 import { travelDistance, type Direction, type Wall } from "./safe-cells.ts";
-import { ROUND_MS, type GameState } from "./game-logic.ts";
+import { ROUND_MS, WARNING_MS, type GameState } from "./game-logic.ts";
 
 const N = 5;
 const CELL_PCT = 100 / N;
 const DIRECTIONS: Direction[] = ["up", "down", "left", "right"];
+const FLASH_WINDOW_MS = 2000;
 
 let boardEl: HTMLElement;
 let playerEl: HTMLElement;
@@ -15,6 +16,7 @@ let gameOverEl: HTMLElement;
 let roundsSurvivedEl: HTMLElement;
 const arrowEls = new Map<Direction, HTMLElement>();
 const pillarEls = new Map<Direction, HTMLElement[]>();
+const cellEls = new Map<string, HTMLElement>();
 
 export function initUI(walls: Wall[]): void {
   boardEl = document.querySelector<HTMLElement>("#board")!;
@@ -36,6 +38,7 @@ export function initUI(walls: Wall[]): void {
       cell.className = "cell";
       if (walls.some((w) => w.col === col && w.row === row)) cell.classList.add("wall");
       boardEl.append(cell);
+      cellEls.set(`${col},${row}`, cell);
     }
   }
 
@@ -72,16 +75,25 @@ export function render(state: GameState, now: number): void {
   playerEl.style.left = `${(state.player.col - 1) * CELL_PCT + CELL_PCT / 2}%`;
   playerEl.style.top = `${(state.player.row - 1) * CELL_PCT + CELL_PCT / 2}%`;
 
+  for (const [key, cell] of cellEls) {
+    const [col, row] = key.split(",").map(Number);
+    cell.classList.toggle("wall", state.walls.some((w) => w.col === col && w.row === row));
+  }
+
   const warningThroughRetract =
     state.phase === "warning" || state.phase === "attack" || state.phase === "retract";
+  const flashing =
+    state.phase === "attack" ||
+    (state.phase === "warning" && WARNING_MS - (now - state.phaseStartedAt) <= FLASH_WINDOW_MS);
   for (const direction of DIRECTIONS) {
-    arrowEls
-      .get(direction)!
-      .classList.toggle("active", warningThroughRetract && direction === state.direction);
+    const active = warningThroughRetract && state.directions.includes(direction);
+    const el = arrowEls.get(direction)!;
+    el.classList.toggle("active", active);
+    el.classList.toggle("flashing", active && flashing);
   }
 
   for (const direction of DIRECTIONS) {
-    const extending = state.phase === "attack" && direction === state.direction;
+    const extending = state.phase === "attack" && state.directions.includes(direction);
     const sizeProp = direction === "up" || direction === "down" ? "height" : "width";
     pillarEls.get(direction)!.forEach((el, i) => {
       const distance = travelDistance(direction, i + 1, state.walls, state.n);

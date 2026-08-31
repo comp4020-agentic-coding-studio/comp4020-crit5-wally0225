@@ -1,7 +1,13 @@
 // Pure game state and rules --- no DOM here, so vitest can exercise a round's
 // rules (movement, timing, collision) directly. `render.ts` is the only part
 // of the game that touches the document.
-import { cellId, safeCellsForDirection, type Direction, type Wall } from "./safe-cells.ts";
+import {
+  cellId,
+  safeCellsForDirection,
+  safeCellsForDirections,
+  type Direction,
+  type Wall,
+} from "./safe-cells.ts";
 
 export type Phase = "warning" | "attack" | "retract" | "buffer" | "gameOver";
 
@@ -12,14 +18,15 @@ export interface Position {
 
 export interface GameState {
   round: number;
-  direction: Direction;
+  directions: Direction[];
   phase: Phase;
   phaseStartedAt: number;
   roundStartedAt: number;
   player: Position;
   walls: Wall[];
   n: number;
-  pickDirection: () => Direction;
+  pickDirections: (round: number, walls: Wall[], n: number) => Direction[];
+  pickWalls: (exclude: Position, n: number) => Wall[];
 }
 
 export const WARNING_MS = 5000;
@@ -37,8 +44,76 @@ const PHASE_DURATIONS: Record<Exclude<Phase, "gameOver">, number> = {
 
 const DIRECTIONS: Direction[] = ["up", "down", "left", "right"];
 
-export function randomDirection(): Direction {
-  return DIRECTIONS[Math.floor(Math.random() * DIRECTIONS.length)];
+// Rounds 1-4 attack from 1 direction; round 5 onward attacks from 2,
+// capped there --- 2 walls can never guarantee a hiding spot against 3
+// simultaneous directions, so the escalation stops at 2.
+export function directionCountForRound(round: number): number {
+  if (round >= 5) return 2;
+  return 1;
+}
+
+// A second attack direction must come off the other axis --- an up/down
+// attack can only gain left/right, never the opposite direction on its own
+// axis (up+down or left+right never attack together).
+const PERPENDICULAR: Record<Direction, Direction[]> = {
+  up: ["left", "right"],
+  down: ["left", "right"],
+  left: ["up", "down"],
+  right: ["up", "down"],
+};
+
+const PERPENDICULAR_PAIRS: [Direction, Direction][] = [
+  ["up", "left"],
+  ["up", "right"],
+  ["down", "left"],
+  ["down", "right"],
+];
+
+// Which perpendicular pairs still leave at least one cell safe against both
+// directions at once, for the given walls --- with only 2 walls this is
+// always exactly 2 of the 4 pairs (a "sandwich" on both a row and a column
+// needs a wall on each axis, and 2 walls only ever line up diagonally one
+// way), so a 2-direction round only ever picks from a pair players can hide
+// from.
+export function solvablePairs(walls: Wall[], n = 5): [Direction, Direction][] {
+  return PERPENDICULAR_PAIRS.filter(
+    ([a, b]) => safeCellsForDirections([a, b], walls, n).size > 0,
+  );
+}
+
+function pick<T>(options: T[]): T {
+  return options[Math.floor(Math.random() * options.length)];
+}
+
+export function defaultPickDirections(round: number, walls: Wall[], n: number): Direction[] {
+  if (directionCountForRound(round) === 1) return [pick(DIRECTIONS)];
+
+  const pairs = solvablePairs(walls, n);
+  if (pairs.length > 0) return [...pick(pairs)];
+  const primary = pick(DIRECTIONS);
+  return [primary, pick(PERPENDICULAR[primary])];
+}
+
+// Walls always land on distinct rows and columns --- if they shared one,
+// every perpendicular pair would be unsolvable (up/down safety only exists
+// in a wall's own column, left/right safety only in a wall's own row, so a
+// shared row or column collapses both onto the same cells and leaves no
+// intersection anywhere).
+export function defaultPickWalls(exclude: Position, n: number): Wall[] {
+  const cells: Position[] = [];
+  for (let col = 2; col <= n - 1; col++) {
+    for (let row = 2; row <= n - 1; row++) {
+      if (col === exclude.col && row === exclude.row) continue;
+      cells.push({ col, row });
+    }
+  }
+  const first = cells.splice(Math.floor(Math.random() * cells.length), 1)[0];
+  const rest = cells.filter((c) => c.col !== first.col && c.row !== first.row);
+  const second = pick(rest);
+  return [
+    { col: first.col, row: first.row },
+    { col: second.col, row: second.row },
+  ];
 }
 
 const DEFAULT_WALLS: Wall[] = [
@@ -49,7 +124,8 @@ const DEFAULT_PLAYER: Position = { col: 3, row: 3 }; // c3, exposed under every 
 const DEFAULT_N = 5;
 
 export interface CreateStateOptions {
-  pickDirection?: () => Direction;
+  pickDirections?: (round: number, walls: Wall[], n: number) => Direction[];
+  pickWalls?: (exclude: Position, n: number) => Wall[];
   walls?: Wall[];
   player?: Position;
   n?: number;
@@ -57,25 +133,29 @@ export interface CreateStateOptions {
 }
 
 export function createInitialState(opts: CreateStateOptions = {}): GameState {
-  const pickDirection = opts.pickDirection ?? randomDirection;
+  const pickDirections = opts.pickDirections ?? defaultPickDirections;
+  const pickWalls = opts.pickWalls ?? defaultPickWalls;
   const now = opts.now ?? 0;
+  const walls = opts.walls ?? DEFAULT_WALLS;
+  const n = opts.n ?? DEFAULT_N;
   return {
     round: 1,
-    direction: pickDirection(),
+    directions: pickDirections(1, walls, n),
     phase: "warning",
     phaseStartedAt: now,
     roundStartedAt: now,
     player: opts.player ?? DEFAULT_PLAYER,
-    walls: opts.walls ?? DEFAULT_WALLS,
-    n: opts.n ?? DEFAULT_N,
-    pickDirection,
+    walls,
+    n,
+    pickDirections,
+    pickWalls,
   };
 }
 
 export function restart(state: GameState, now: number): GameState {
   return createInitialState({
-    pickDirection: state.pickDirection,
-    walls: state.walls,
+    pickDirections: state.pickDirections,
+    pickWalls: state.pickWalls,
     n: state.n,
     now,
   });
@@ -97,7 +177,8 @@ export function advancePhase(state: GameState, now: number): GameState {
 
   let phase = state.phase;
   let round = state.round;
-  let direction = state.direction;
+  let directions = state.directions;
+  let walls = state.walls;
   let elapsed = now - state.phaseStartedAt;
   let phaseStartedAt = state.phaseStartedAt;
   let roundStartedAt = state.roundStartedAt;
@@ -118,14 +199,17 @@ export function advancePhase(state: GameState, now: number): GameState {
       case "buffer":
         phase = "warning";
         round += 1;
-        direction = state.pickDirection();
+        if ((round - 1) % 5 === 0) {
+          walls = state.pickWalls(state.player, state.n);
+        }
+        directions = state.pickDirections(round, walls, state.n);
         roundStartedAt = phaseStartedAt;
         break;
     }
   }
 
   if (phase === state.phase && phaseStartedAt === state.phaseStartedAt) return state;
-  return { ...state, phase, round, direction, phaseStartedAt, roundStartedAt };
+  return { ...state, phase, round, directions, walls, phaseStartedAt, roundStartedAt };
 }
 
 // How far (in cells) the active direction's pillar has to travel from its
@@ -150,13 +234,16 @@ function depthOf(direction: Direction, position: Position, n: number): number {
 export function checkCollision(state: GameState, now: number): GameState {
   if (state.phase !== "attack") return state;
 
-  const safe = safeCellsForDirection(state.direction, state.walls, state.n);
-  if (safe.has(cellId(state.player.col, state.player.row))) return state;
-
   const elapsed = Math.min(Math.max(now - state.phaseStartedAt, 0), ATTACK_MS);
   const t = elapsed / ATTACK_MS;
-  const depth = depthOf(state.direction, state.player, state.n);
+  const playerCell = cellId(state.player.col, state.player.row);
 
-  if (t * state.n >= depth) return { ...state, phase: "gameOver" };
-  return state;
+  const hit = state.directions.some((direction) => {
+    const safe = safeCellsForDirection(direction, state.walls, state.n);
+    if (safe.has(playerCell)) return false;
+    const depth = depthOf(direction, state.player, state.n);
+    return t * state.n >= depth;
+  });
+
+  return hit ? { ...state, phase: "gameOver" } : state;
 }
