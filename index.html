@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>COMP4020 prototype</title>
+    <title>Pillars</title>
     <meta
       name="description"
-      content="Replace this with one sentence saying what this page is. A search result and a link preview both show it."
+      content="A tiny survival game: read the warning, get behind a wall, live."
     />
 
     <!--
@@ -23,15 +23,33 @@
   <body>
     <header>
       <nav aria-label="Primary">
-        <a href="./">Home</a>
+        <a href="./">Pillars</a>
       </nav>
+      <p id="round" aria-live="polite"></p>
     </header>
     <main>
-      <h1>COMP4020 prototype</h1>
-      <p>
-        Replace this with your prototype. This week's brief is on the course website;
-        <code>spec/README.md</code> explains how the checks in this repo relate to it.
-      </p>
+      <h1 class="visually-hidden">Pillars</h1>
+      <div id="arena">
+        <div class="arrow-row arrow-up" data-direction="up">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <div class="middle-row">
+          <div class="arrow-col arrow-left" data-direction="left">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <div id="board"></div>
+          <div class="arrow-col arrow-right" data-direction="right">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+        </div>
+        <div class="arrow-row arrow-down" data-direction="down">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+      </div>
+      <div id="game-over" class="end-state" hidden>
+        <p id="rounds-survived"></p>
+        <button id="restart" type="button">Restart</button>
+      </div>
     </main>
     <script type="module" src="./main.ts"></script>
   </body>
