@@ -15,6 +15,7 @@ export interface GameState {
   direction: Direction;
   phase: Phase;
   phaseStartedAt: number;
+  roundStartedAt: number;
   player: Position;
   walls: Wall[];
   n: number;
@@ -25,6 +26,7 @@ export const WARNING_MS = 5000;
 export const ATTACK_MS = 1000;
 export const RETRACT_MS = 2000;
 export const BUFFER_MS = 2000;
+export const ROUND_MS = WARNING_MS + ATTACK_MS + RETRACT_MS + BUFFER_MS;
 
 const PHASE_DURATIONS: Record<Exclude<Phase, "gameOver">, number> = {
   warning: WARNING_MS,
@@ -56,11 +58,13 @@ export interface CreateStateOptions {
 
 export function createInitialState(opts: CreateStateOptions = {}): GameState {
   const pickDirection = opts.pickDirection ?? randomDirection;
+  const now = opts.now ?? 0;
   return {
     round: 1,
     direction: pickDirection(),
     phase: "warning",
-    phaseStartedAt: opts.now ?? 0,
+    phaseStartedAt: now,
+    roundStartedAt: now,
     player: opts.player ?? DEFAULT_PLAYER,
     walls: opts.walls ?? DEFAULT_WALLS,
     n: opts.n ?? DEFAULT_N,
@@ -96,6 +100,7 @@ export function advancePhase(state: GameState, now: number): GameState {
   let direction = state.direction;
   let elapsed = now - state.phaseStartedAt;
   let phaseStartedAt = state.phaseStartedAt;
+  let roundStartedAt = state.roundStartedAt;
 
   while (elapsed >= PHASE_DURATIONS[phase as Exclude<Phase, "gameOver">]) {
     elapsed -= PHASE_DURATIONS[phase as Exclude<Phase, "gameOver">];
@@ -114,12 +119,13 @@ export function advancePhase(state: GameState, now: number): GameState {
         phase = "warning";
         round += 1;
         direction = state.pickDirection();
+        roundStartedAt = phaseStartedAt;
         break;
     }
   }
 
   if (phase === state.phase && phaseStartedAt === state.phaseStartedAt) return state;
-  return { ...state, phase, round, direction, phaseStartedAt };
+  return { ...state, phase, round, direction, phaseStartedAt, roundStartedAt };
 }
 
 // How far (in cells) the active direction's pillar has to travel from its

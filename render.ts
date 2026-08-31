@@ -1,7 +1,7 @@
 // The only module that touches the DOM: reads a GameState and writes it out.
 // Never mutates state --- game-logic.ts owns that.
 import { travelDistance, type Direction, type Wall } from "./safe-cells.ts";
-import type { GameState } from "./game-logic.ts";
+import { ROUND_MS, type GameState } from "./game-logic.ts";
 
 const N = 5;
 const CELL_PCT = 100 / N;
@@ -10,6 +10,7 @@ const DIRECTIONS: Direction[] = ["up", "down", "left", "right"];
 let boardEl: HTMLElement;
 let playerEl: HTMLElement;
 let roundEl: HTMLElement;
+let roundTimerEl: HTMLElement;
 let gameOverEl: HTMLElement;
 let roundsSurvivedEl: HTMLElement;
 const arrowEls = new Map<Direction, HTMLElement>();
@@ -18,6 +19,7 @@ const pillarEls = new Map<Direction, HTMLElement[]>();
 export function initUI(walls: Wall[]): void {
   boardEl = document.querySelector<HTMLElement>("#board")!;
   roundEl = document.querySelector<HTMLElement>("#round")!;
+  roundTimerEl = document.querySelector<HTMLElement>("#round-timer")!;
   gameOverEl = document.querySelector<HTMLElement>("#game-over")!;
   roundsSurvivedEl = document.querySelector<HTMLElement>("#rounds-survived")!;
 
@@ -66,7 +68,7 @@ export function initUI(walls: Wall[]): void {
   boardEl.append(playerEl);
 }
 
-export function render(state: GameState): void {
+export function render(state: GameState, now: number): void {
   playerEl.style.left = `${(state.player.col - 1) * CELL_PCT + CELL_PCT / 2}%`;
   playerEl.style.top = `${(state.player.row - 1) * CELL_PCT + CELL_PCT / 2}%`;
 
@@ -89,6 +91,11 @@ export function render(state: GameState): void {
   }
 
   roundEl.textContent = `Round ${state.round}`;
+  const seconds =
+    state.phase === "gameOver"
+      ? 0
+      : Math.min(Math.floor((now - state.roundStartedAt) / 1000), ROUND_MS / 1000 - 1);
+  roundTimerEl.textContent = `${seconds}s`;
 
   gameOverEl.hidden = state.phase !== "gameOver";
   if (state.phase === "gameOver") {

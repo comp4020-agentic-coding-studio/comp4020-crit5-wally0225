@@ -25,11 +25,18 @@
       <nav aria-label="Primary">
         <a href="./">Pillars</a>
       </nav>
-      <p id="round" aria-live="polite"></p>
+      <div class="round-status">
+        <p id="round" aria-live="polite"></p>
+        <p id="round-timer" aria-live="polite"></p>
+      </div>
     </header>
     <main>
       <h1 class="visually-hidden">Pillars</h1>
-      <div id="arena">
+      <div id="start-screen" class="cover-state">
+        <p class="cover-title">Pillars</p>
+        <button id="start-button" type="button">Start</button>
+      </div>
+      <div id="arena" hidden>
         <div class="arrow-row arrow-up" data-direction="up">
           <span></span><span></span><span></span><span></span><span></span>
         </div>
