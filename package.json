@@ -20,8 +20,5 @@
     "vite": "^8.1.5",
     "vitest": "^4.1.10"
   },
-  "packageManager": "pnpm@11.9.0",
-  "dependencies": {
-    "kaplay": "^3001.0.19"
-  }
+  "packageManager": "pnpm@11.9.0"
 }
