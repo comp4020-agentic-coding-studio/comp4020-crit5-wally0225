@@ -13,9 +13,10 @@ export function cellId(col: number, row: number): string {
   return `${"abcde"[col - 1]}${row}`;
 }
 
-// How many cells a pillar in this lane can travel before it's stopped by a
-// wall (or reaches the far edge, if none blocks it) --- used to size the
-// pillar visually, independent of whether any particular cell is occupied.
+// How many cells a pillar in this lane travels before it's stopped by a wall
+// (or reaches the far edge, if none blocks it) --- used to size the pillar
+// visually. Stops one cell short of a wall's row/column so the pillar never
+// visually covers the wall itself.
 export function travelDistance(
   direction: Direction,
   lane: number,
@@ -26,14 +27,14 @@ export function travelDistance(
     const relevant = walls.filter((w) => w.col === lane);
     if (relevant.length === 0) return n;
     return direction === "up"
-      ? Math.min(...relevant.map((w) => w.row))
-      : n - Math.max(...relevant.map((w) => w.row)) + 1;
+      ? Math.min(...relevant.map((w) => w.row)) - 1
+      : n - Math.max(...relevant.map((w) => w.row));
   }
   const relevant = walls.filter((w) => w.row === lane);
   if (relevant.length === 0) return n;
   return direction === "left"
-    ? Math.min(...relevant.map((w) => w.col))
-    : n - Math.max(...relevant.map((w) => w.col)) + 1;
+    ? Math.min(...relevant.map((w) => w.col)) - 1
+    : n - Math.max(...relevant.map((w) => w.col));
 }
 
 export function safeCellsForDirection(

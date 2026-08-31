@@ -2,8 +2,8 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
-import { ATTACK_MS, checkCollision, createInitialState } from "../game-logic.ts";
-import { safeCellsForDirection, type Wall } from "../safe-cells.ts";
+import { advancePhase, ATTACK_MS, checkCollision, createInitialState } from "../game-logic.ts";
+import { safeCellsForDirection, travelDistance, type Wall } from "../safe-cells.ts";
 
 // crit 5 ("A game") spec: no how-to-play modal, no instructions page, nothing
 // in the README standing in for either. Whether the opening screen itself
@@ -68,6 +68,40 @@ describe("safe-cell derivation", () => {
 
   it("derives RIGHT safe cells", () => {
     expect(safeCellsForDirection("right", walls)).toEqual(new Set(["a2", "a4", "b4", "c4"]));
+  });
+});
+
+describe("pillar travel distance stops short of a wall", () => {
+  const walls: Wall[] = [
+    { col: 2, row: 2 },
+    { col: 4, row: 4 },
+  ];
+
+  it("stops one cell before the wall it's blocked by, in every direction", () => {
+    expect(travelDistance("up", 2, walls)).toBe(1); // b2: wall at row 2 -> only row 1 swept
+    expect(travelDistance("down", 4, walls)).toBe(1); // d4: wall at row 4 -> only row 5 swept
+    expect(travelDistance("left", 2, walls)).toBe(1); // b2: wall at col 2 -> only col 1 swept
+    expect(travelDistance("right", 4, walls)).toBe(1); // d4: wall at col 4 -> only col 5 swept
+  });
+
+  it("sweeps the full board in a lane with no wall", () => {
+    expect(travelDistance("up", 1, walls)).toBe(5);
+    expect(travelDistance("right", 1, walls)).toBe(5);
+  });
+});
+
+describe("round timer resets at the start of each round", () => {
+  it("keeps roundStartedAt fixed across phase changes within a round", () => {
+    const state = createInitialState({ pickDirection: () => "up", now: 0 });
+    const midRetract = advancePhase(state, 5000 + 1000 + 500); // into retract
+    expect(midRetract.roundStartedAt).toBe(0);
+  });
+
+  it("resets roundStartedAt when a new round begins", () => {
+    const state = createInitialState({ pickDirection: () => "up", now: 0 });
+    const roundTwo = advancePhase(state, 5000 + 1000 + 2000 + 2000); // full cycle -> round 2
+    expect(roundTwo.round).toBe(2);
+    expect(roundTwo.roundStartedAt).toBe(10000);
   });
 });
 
