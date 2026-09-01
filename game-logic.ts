@@ -35,18 +35,44 @@ export const RETRACT_MS = 2000;
 export const BUFFER_MS = 2000;
 export const ROUND_MS = WARNING_MS + ATTACK_MS + RETRACT_MS + BUFFER_MS;
 
-const PHASE_DURATIONS: Record<Exclude<Phase, "gameOver">, number> = {
-  warning: WARNING_MS,
-  attack: ATTACK_MS,
-  retract: RETRACT_MS,
-  buffer: BUFFER_MS,
-};
+// From round 7, rounds speed up: less time to read the warning, a snappier
+// retract --- attack and buffer stay the same length.
+const FAST_ROUND_START = 7;
+const FAST_WARNING_MS = 3000;
+const FAST_RETRACT_MS = 1000;
+export const FLASH_WINDOW_MS = 2000;
+const FAST_FLASH_WINDOW_MS = 1500;
+
+function isFastRound(round: number): boolean {
+  return round >= FAST_ROUND_START;
+}
+
+function phaseDurationsForRound(round: number): Record<Exclude<Phase, "gameOver">, number> {
+  return isFastRound(round)
+    ? { warning: FAST_WARNING_MS, attack: ATTACK_MS, retract: FAST_RETRACT_MS, buffer: BUFFER_MS }
+    : { warning: WARNING_MS, attack: ATTACK_MS, retract: RETRACT_MS, buffer: BUFFER_MS };
+}
+
+export function warningMsForRound(round: number): number {
+  return phaseDurationsForRound(round).warning;
+}
+
+export function flashWindowMsForRound(round: number): number {
+  return isFastRound(round) ? FAST_FLASH_WINDOW_MS : FLASH_WINDOW_MS;
+}
+
+export function roundDurationForRound(round: number): number {
+  const d = phaseDurationsForRound(round);
+  return d.warning + d.attack + d.retract + d.buffer;
+}
 
 const DIRECTIONS: Direction[] = ["up", "down", "left", "right"];
 
 // Rounds 1-4 attack from 1 direction; round 5 onward attacks from 2,
-// capped there --- 2 walls can never guarantee a hiding spot against 3
-// simultaneous directions, so the escalation stops at 2.
+// capped there --- guaranteeing a hiding spot against 3 simultaneous
+// directions needs a wall "sandwich" on both axes at once, which general
+// position across all the walls never produces, so the escalation stops
+// at 2.
 export function directionCountForRound(round: number): number {
   if (round >= 5) return 2;
   return 1;
@@ -70,11 +96,8 @@ const PERPENDICULAR_PAIRS: [Direction, Direction][] = [
 ];
 
 // Which perpendicular pairs still leave at least one cell safe against both
-// directions at once, for the given walls --- with only 2 walls this is
-// always exactly 2 of the 4 pairs (a "sandwich" on both a row and a column
-// needs a wall on each axis, and 2 walls only ever line up diagonally one
-// way), so a 2-direction round only ever picks from a pair players can hide
-// from.
+// directions at once, for the given walls --- so a 2-direction round only
+// ever picks from a pair players can actually hide from.
 export function solvablePairs(walls: Wall[], n = 5): [Direction, Direction][] {
   return PERPENDICULAR_PAIRS.filter(
     ([a, b]) => safeCellsForDirections([a, b], walls, n).size > 0,
@@ -94,31 +117,35 @@ export function defaultPickDirections(round: number, walls: Wall[], n: number): 
   return [primary, pick(PERPENDICULAR[primary])];
 }
 
-// Walls always land on distinct rows and columns --- if they shared one,
-// every perpendicular pair would be unsolvable (up/down safety only exists
-// in a wall's own column, left/right safety only in a wall's own row, so a
-// shared row or column collapses both onto the same cells and leaves no
-// intersection anywhere).
+const WALL_COUNT = 3;
+
+// Every wall lands on a row and column no other wall occupies --- a shared
+// row or column collapses both walls' safety onto the same cells (up/down
+// safety only exists in a wall's own column, left/right only in its own
+// row), so general position is what gives players more places to hide as
+// the wall count grows instead of fewer.
 export function defaultPickWalls(exclude: Position, n: number): Wall[] {
-  const cells: Position[] = [];
+  let candidates: Position[] = [];
   for (let col = 2; col <= n - 1; col++) {
     for (let row = 2; row <= n - 1; row++) {
       if (col === exclude.col && row === exclude.row) continue;
-      cells.push({ col, row });
+      candidates.push({ col, row });
     }
   }
-  const first = cells.splice(Math.floor(Math.random() * cells.length), 1)[0];
-  const rest = cells.filter((c) => c.col !== first.col && c.row !== first.row);
-  const second = pick(rest);
-  return [
-    { col: first.col, row: first.row },
-    { col: second.col, row: second.row },
-  ];
+
+  const walls: Wall[] = [];
+  for (let i = 0; i < WALL_COUNT; i++) {
+    const chosen = pick(candidates);
+    walls.push({ col: chosen.col, row: chosen.row });
+    candidates = candidates.filter((c) => c.col !== chosen.col && c.row !== chosen.row);
+  }
+  return walls;
 }
 
 const DEFAULT_WALLS: Wall[] = [
   { col: 2, row: 2 }, // b2
   { col: 6, row: 6 }, // f6
+  { col: 3, row: 5 }, // c5
 ];
 const DEFAULT_PLAYER: Position = { col: 4, row: 4 }; // d4, exposed under every direction
 const DEFAULT_N = 7;
@@ -183,8 +210,8 @@ export function advancePhase(state: GameState, now: number): GameState {
   let phaseStartedAt = state.phaseStartedAt;
   let roundStartedAt = state.roundStartedAt;
 
-  while (elapsed >= PHASE_DURATIONS[phase as Exclude<Phase, "gameOver">]) {
-    elapsed -= PHASE_DURATIONS[phase as Exclude<Phase, "gameOver">];
+  while (elapsed >= phaseDurationsForRound(round)[phase as Exclude<Phase, "gameOver">]) {
+    elapsed -= phaseDurationsForRound(round)[phase as Exclude<Phase, "gameOver">];
     phaseStartedAt = now - elapsed;
     switch (phase) {
       case "warning":

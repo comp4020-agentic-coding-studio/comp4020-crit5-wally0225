@@ -1,12 +1,16 @@
 // The only module that touches the DOM: reads a GameState and writes it out.
 // Never mutates state --- game-logic.ts owns that.
 import { travelDistance, type Direction, type Wall } from "./safe-cells.ts";
-import { ROUND_MS, WARNING_MS, type GameState } from "./game-logic.ts";
+import {
+  flashWindowMsForRound,
+  roundDurationForRound,
+  warningMsForRound,
+  type GameState,
+} from "./game-logic.ts";
 
 const N = 7;
 const CELL_PCT = 100 / N;
 const DIRECTIONS: Direction[] = ["up", "down", "left", "right"];
-const FLASH_WINDOW_MS = 2000;
 
 let boardEl: HTMLElement;
 let playerEl: HTMLElement;
@@ -82,9 +86,11 @@ export function render(state: GameState, now: number): void {
 
   const warningThroughRetract =
     state.phase === "warning" || state.phase === "attack" || state.phase === "retract";
+  const warningMs = warningMsForRound(state.round);
   const flashing =
     state.phase === "attack" ||
-    (state.phase === "warning" && WARNING_MS - (now - state.phaseStartedAt) <= FLASH_WINDOW_MS);
+    (state.phase === "warning" &&
+      warningMs - (now - state.phaseStartedAt) <= flashWindowMsForRound(state.round));
   for (const direction of DIRECTIONS) {
     const active = warningThroughRetract && state.directions.includes(direction);
     const el = arrowEls.get(direction)!;
@@ -103,10 +109,11 @@ export function render(state: GameState, now: number): void {
   }
 
   roundEl.textContent = `Round ${state.round}`;
+  const roundMs = roundDurationForRound(state.round);
   const seconds =
     state.phase === "gameOver"
       ? 0
-      : Math.min(Math.floor((now - state.roundStartedAt) / 1000), ROUND_MS / 1000 - 1);
+      : Math.min(Math.floor((now - state.roundStartedAt) / 1000), roundMs / 1000 - 1);
   roundTimerEl.textContent = `${seconds}s`;
 
   gameOverEl.hidden = state.phase !== "gameOver";

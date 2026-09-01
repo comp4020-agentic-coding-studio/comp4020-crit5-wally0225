@@ -10,8 +10,11 @@ import {
   defaultPickDirections,
   defaultPickWalls,
   directionCountForRound,
+  flashWindowMsForRound,
+  roundDurationForRound,
   ROUND_MS,
   solvablePairs,
+  warningMsForRound,
 } from "../game-logic.ts";
 import { safeCellsForDirection, safeCellsForDirections, travelDistance, type Wall } from "../safe-cells.ts";
 
@@ -213,12 +216,57 @@ describe("solvablePairs", () => {
 });
 
 describe("defaultPickWalls always lands on distinct rows and columns", () => {
-  it("never shares a row or column across many random draws", () => {
+  it("returns 3 walls, no two sharing a row or column, across many random draws", () => {
     for (let i = 0; i < 200; i++) {
-      const [a, b] = defaultPickWalls({ col: 3, row: 3 }, 5);
-      expect(a.col).not.toBe(b.col);
-      expect(a.row).not.toBe(b.row);
+      const walls = defaultPickWalls({ col: 3, row: 3 }, 7);
+      expect(walls).toHaveLength(3);
+      for (let a = 0; a < walls.length; a++) {
+        for (let b = a + 1; b < walls.length; b++) {
+          expect(walls[a].col).not.toBe(walls[b].col);
+          expect(walls[a].row).not.toBe(walls[b].row);
+        }
+      }
     }
+  });
+});
+
+describe("round timing speeds up from round 7", () => {
+  it("keeps the normal durations through round 6", () => {
+    expect(warningMsForRound(1)).toBe(5000);
+    expect(warningMsForRound(6)).toBe(5000);
+    expect(flashWindowMsForRound(6)).toBe(2000);
+    expect(roundDurationForRound(6)).toBe(10000);
+  });
+
+  it("shortens warning, flash window, retract, and total round length from round 7 on", () => {
+    expect(warningMsForRound(7)).toBe(3000);
+    expect(flashWindowMsForRound(7)).toBe(1500);
+    expect(roundDurationForRound(7)).toBe(7000);
+    expect(warningMsForRound(100)).toBe(3000);
+    expect(roundDurationForRound(100)).toBe(7000);
+  });
+
+  it("advancePhase actually uses the faster durations once round 7 begins", () => {
+    const state = createInitialState({ pickDirections: () => ["up"], now: 0 });
+
+    // Fast-forward through rounds 1-6 at the normal 10s pace to reach round 7.
+    let s = state;
+    for (let round = 1; round <= 6; round++) {
+      s = advancePhase(s, s.roundStartedAt + ROUND_MS);
+    }
+    expect(s.round).toBe(7);
+    expect(s.phase).toBe("warning");
+    const round7Start = s.roundStartedAt;
+
+    // Warning now lasts only 3000ms, not 5000ms.
+    const stillWarning = advancePhase(s, round7Start + 2999);
+    expect(stillWarning.phase).toBe("warning");
+    const nowAttack = advancePhase(s, round7Start + 3000);
+    expect(nowAttack.phase).toBe("attack");
+
+    // Retract now lasts only 1000ms, not 2000ms, so the whole round is 7000ms.
+    const roundEight = advancePhase(s, round7Start + 7000);
+    expect(roundEight.round).toBe(8);
   });
 });
 
