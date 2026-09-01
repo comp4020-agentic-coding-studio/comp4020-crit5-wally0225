@@ -2,12 +2,15 @@
 // All rules live in game-logic.ts; all DOM writes live in render.ts.
 import { advancePhase, checkCollision, createInitialState, movePlayer, restart } from "./game-logic.ts";
 import { initUI, render } from "./render.ts";
+import { setIntensity, startMusic, toggleMute } from "./audio.ts";
 
 let state = createInitialState({ now: performance.now() });
 let started = false;
+let lastMusicRound = state.round;
 
 const arenaEl = document.querySelector<HTMLElement>("#arena")!;
 const startScreenEl = document.querySelector<HTMLElement>("#start-screen")!;
+const muteButtonEl = document.querySelector<HTMLButtonElement>("#mute-button")!;
 
 initUI(state.walls);
 render(state, performance.now());
@@ -33,6 +36,9 @@ document.querySelector<HTMLButtonElement>("#start-button")!.addEventListener("cl
   state = restart(state, performance.now());
   startScreenEl.hidden = true;
   arenaEl.hidden = false;
+  startMusic();
+  lastMusicRound = state.round;
+  setIntensity(state.round);
   render(state, performance.now());
 });
 
@@ -41,10 +47,20 @@ document.querySelector<HTMLButtonElement>("#restart")!.addEventListener("click",
   render(state, performance.now());
 });
 
+muteButtonEl.addEventListener("click", () => {
+  const muted = toggleMute();
+  muteButtonEl.textContent = muted ? "🔇" : "🔊";
+  muteButtonEl.setAttribute("aria-pressed", String(muted));
+});
+
 function tick(now: number): void {
   if (started) {
     state = advancePhase(state, now);
     state = checkCollision(state, now);
+    if (state.round !== lastMusicRound) {
+      lastMusicRound = state.round;
+      setIntensity(state.round);
+    }
     render(state, now);
   }
   requestAnimationFrame(tick);

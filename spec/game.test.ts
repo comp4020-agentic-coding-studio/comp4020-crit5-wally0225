@@ -165,14 +165,13 @@ describe("pillar collision -> game over", () => {
 });
 
 describe("directionCountForRound", () => {
-  it("attacks from 1 direction through round 4", () => {
+  it("attacks from 1 direction only on round 1", () => {
     expect(directionCountForRound(1)).toBe(1);
-    expect(directionCountForRound(4)).toBe(1);
   });
 
-  it("escalates to 2 directions from round 5 onward, and stays capped there", () => {
-    expect(directionCountForRound(5)).toBe(2);
-    expect(directionCountForRound(8)).toBe(2);
+  it("escalates to 2 directions from round 2 onward, and stays capped there", () => {
+    expect(directionCountForRound(2)).toBe(2);
+    expect(directionCountForRound(3)).toBe(2);
     expect(directionCountForRound(9)).toBe(2);
     expect(directionCountForRound(100)).toBe(2);
   });
@@ -230,43 +229,43 @@ describe("defaultPickWalls always lands on distinct rows and columns", () => {
   });
 });
 
-describe("round timing speeds up from round 7", () => {
-  it("keeps the normal durations through round 6", () => {
+describe("round timing speeds up from round 6", () => {
+  it("keeps the normal durations through round 5", () => {
     expect(warningMsForRound(1)).toBe(5000);
-    expect(warningMsForRound(6)).toBe(5000);
-    expect(flashWindowMsForRound(6)).toBe(2000);
-    expect(roundDurationForRound(6)).toBe(10000);
+    expect(warningMsForRound(5)).toBe(5000);
+    expect(flashWindowMsForRound(5)).toBe(2000);
+    expect(roundDurationForRound(5)).toBe(10000);
   });
 
-  it("shortens warning, flash window, retract, and total round length from round 7 on", () => {
-    expect(warningMsForRound(7)).toBe(3000);
-    expect(flashWindowMsForRound(7)).toBe(1500);
-    expect(roundDurationForRound(7)).toBe(7000);
+  it("shortens warning, flash window, retract, and total round length from round 6 on", () => {
+    expect(warningMsForRound(6)).toBe(3000);
+    expect(flashWindowMsForRound(6)).toBe(1500);
+    expect(roundDurationForRound(6)).toBe(7000);
     expect(warningMsForRound(100)).toBe(3000);
     expect(roundDurationForRound(100)).toBe(7000);
   });
 
-  it("advancePhase actually uses the faster durations once round 7 begins", () => {
+  it("advancePhase actually uses the faster durations once round 6 begins", () => {
     const state = createInitialState({ pickDirections: () => ["up"], now: 0 });
 
-    // Fast-forward through rounds 1-6 at the normal 10s pace to reach round 7.
+    // Fast-forward through rounds 1-5 at the normal 10s pace to reach round 6.
     let s = state;
-    for (let round = 1; round <= 6; round++) {
+    for (let round = 1; round <= 5; round++) {
       s = advancePhase(s, s.roundStartedAt + ROUND_MS);
     }
-    expect(s.round).toBe(7);
+    expect(s.round).toBe(6);
     expect(s.phase).toBe("warning");
-    const round7Start = s.roundStartedAt;
+    const round6Start = s.roundStartedAt;
 
     // Warning now lasts only 3000ms, not 5000ms.
-    const stillWarning = advancePhase(s, round7Start + 2999);
+    const stillWarning = advancePhase(s, round6Start + 2999);
     expect(stillWarning.phase).toBe("warning");
-    const nowAttack = advancePhase(s, round7Start + 3000);
+    const nowAttack = advancePhase(s, round6Start + 3000);
     expect(nowAttack.phase).toBe("attack");
 
     // Retract now lasts only 1000ms, not 2000ms, so the whole round is 7000ms.
-    const roundEight = advancePhase(s, round7Start + 7000);
-    expect(roundEight.round).toBe(8);
+    const roundSeven = advancePhase(s, round6Start + 7000);
+    expect(roundSeven.round).toBe(7);
   });
 });
 
@@ -280,6 +279,52 @@ describe("defaultPickDirections only ever picks a hideable pair for 2-direction 
       const directions = defaultPickDirections(5, walls, 5);
       expect(directions).toHaveLength(2);
       expect(safeCellsForDirections(directions, walls).size).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("direction picks never repeat the previous round's set through round 10", () => {
+  const walls: Wall[] = [
+    { col: 2, row: 2 },
+    { col: 4, row: 4 },
+  ];
+
+  it("always differs from the previous round's direction set, for rounds 2-10", () => {
+    for (let trial = 0; trial < 100; trial++) {
+      let previous = defaultPickDirections(1, walls, 5);
+      for (let round = 2; round <= 10; round++) {
+        const current = defaultPickDirections(round, walls, 5, previous);
+        expect([...current].sort()).not.toEqual([...previous].sort());
+        previous = current;
+      }
+    }
+  });
+
+  it("can repeat the previous round's set once past round 10", () => {
+    // Walls with only 2 solvable pairs (up+right, down+left): if round 11+
+    // still excluded the previous pick, only one candidate would ever remain
+    // and every round-12 pick would deterministically equal round 10's. That
+    // never happens because past round 10 the previous-round pick isn't
+    // filtered out at all, so both pairs stay reachable from either one.
+    const seenAfterUp = new Set<string>();
+    for (let trial = 0; trial < 200; trial++) {
+      const eleven = defaultPickDirections(11, walls, 5, ["up", "right"]);
+      seenAfterUp.add([...eleven].sort().join(","));
+    }
+    expect(seenAfterUp.has(["up", "right"].sort().join(","))).toBe(true);
+  });
+});
+
+describe("advancePhase carries the previous round's directions into the next pick", () => {
+  it("never lands on the same direction set two rounds in a row through round 10", () => {
+    const state = createInitialState({ now: 0 });
+    let s = state;
+    let previous = s.directions;
+    for (let round = 2; round <= 10; round++) {
+      s = advancePhase(s, s.roundStartedAt + roundDurationForRound(s.round));
+      expect(s.round).toBe(round);
+      expect([...s.directions].sort()).not.toEqual([...previous].sort());
+      previous = s.directions;
     }
   });
 });

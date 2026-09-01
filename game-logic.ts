@@ -25,7 +25,12 @@ export interface GameState {
   player: Position;
   walls: Wall[];
   n: number;
-  pickDirections: (round: number, walls: Wall[], n: number) => Direction[];
+  pickDirections: (
+    round: number,
+    walls: Wall[],
+    n: number,
+    previousDirections?: Direction[],
+  ) => Direction[];
   pickWalls: (exclude: Position, n: number) => Wall[];
 }
 
@@ -35,9 +40,9 @@ export const RETRACT_MS = 2000;
 export const BUFFER_MS = 2000;
 export const ROUND_MS = WARNING_MS + ATTACK_MS + RETRACT_MS + BUFFER_MS;
 
-// From round 7, rounds speed up: less time to read the warning, a snappier
+// From round 6, rounds speed up: less time to read the warning, a snappier
 // retract --- attack and buffer stay the same length.
-const FAST_ROUND_START = 7;
+const FAST_ROUND_START = 6;
 const FAST_WARNING_MS = 3000;
 const FAST_RETRACT_MS = 1000;
 export const FLASH_WINDOW_MS = 2000;
@@ -77,13 +82,12 @@ function shouldRegenerateWalls(round: number): boolean {
 
 const DIRECTIONS: Direction[] = ["up", "down", "left", "right"];
 
-// Rounds 1-4 attack from 1 direction; round 5 onward attacks from 2,
-// capped there --- guaranteeing a hiding spot against 3 simultaneous
-// directions needs a wall "sandwich" on both axes at once, which general
-// position across all the walls never produces, so the escalation stops
-// at 2.
+// Round 1 attacks from 1 direction; round 2 onward attacks from 2, capped
+// there --- guaranteeing a hiding spot against 3 simultaneous directions
+// needs a wall "sandwich" on both axes at once, which general position
+// across all the walls never produces, so the escalation stops at 2.
 export function directionCountForRound(round: number): number {
-  if (round >= 5) return 2;
+  if (round >= 2) return 2;
   return 1;
 }
 
@@ -117,11 +121,50 @@ function pick<T>(options: T[]): T {
   return options[Math.floor(Math.random() * options.length)];
 }
 
-export function defaultPickDirections(round: number, walls: Wall[], n: number): Direction[] {
-  if (directionCountForRound(round) === 1) return [pick(DIRECTIONS)];
+// Order-independent: a round's directions are a set, not a sequence.
+function sameDirectionSet(a: Direction[], b: Direction[]): boolean {
+  if (a.length !== b.length) return false;
+  const sorted = (d: Direction[]) => [...d].sort();
+  return sorted(a).every((d, i) => d === sorted(b)[i]);
+}
+
+// Through round 10, a round's attack direction(s) must differ from the
+// previous round's --- keeps the first ten rounds from ever repeating a
+// pattern the player just survived. Falls back to the unfiltered pool if
+// filtering would leave nothing pickable (e.g. only one solvable pair
+// exists for the current walls), since a possible repeat beats no pick.
+const NO_REPEAT_THROUGH_ROUND = 10;
+
+function excludingPrevious<T extends Direction[]>(
+  options: T[],
+  round: number,
+  previousDirections: Direction[],
+): T[] {
+  if (round > NO_REPEAT_THROUGH_ROUND || previousDirections.length === 0) return options;
+  const filtered = options.filter((option) => !sameDirectionSet(option, previousDirections));
+  return filtered.length > 0 ? filtered : options;
+}
+
+export function defaultPickDirections(
+  round: number,
+  walls: Wall[],
+  n: number,
+  previousDirections: Direction[] = [],
+): Direction[] {
+  if (directionCountForRound(round) === 1) {
+    const options = excludingPrevious(
+      DIRECTIONS.map((d) => [d]),
+      round,
+      previousDirections,
+    );
+    return pick(options);
+  }
 
   const pairs = solvablePairs(walls, n);
-  if (pairs.length > 0) return [...pick(pairs)];
+  if (pairs.length > 0) {
+    const options = excludingPrevious(pairs, round, previousDirections);
+    return [...pick(options)];
+  }
   const primary = pick(DIRECTIONS);
   return [primary, pick(PERPENDICULAR[primary])];
 }
@@ -160,7 +203,12 @@ const DEFAULT_PLAYER: Position = { col: 4, row: 4 }; // d4, exposed under every 
 const DEFAULT_N = 7;
 
 export interface CreateStateOptions {
-  pickDirections?: (round: number, walls: Wall[], n: number) => Direction[];
+  pickDirections?: (
+    round: number,
+    walls: Wall[],
+    n: number,
+    previousDirections?: Direction[],
+  ) => Direction[];
   pickWalls?: (exclude: Position, n: number) => Wall[];
   walls?: Wall[];
   player?: Position;
@@ -238,7 +286,7 @@ export function advancePhase(state: GameState, now: number): GameState {
         if (shouldRegenerateWalls(round)) {
           walls = state.pickWalls(state.player, state.n);
         }
-        directions = state.pickDirections(round, walls, state.n);
+        directions = state.pickDirections(round, walls, state.n, directions);
         roundStartedAt = phaseStartedAt;
         break;
     }
