@@ -165,13 +165,14 @@ describe("pillar collision -> game over", () => {
 });
 
 describe("directionCountForRound", () => {
-  it("attacks from 1 direction only on round 1", () => {
+  it("attacks from 1 direction through round 2", () => {
     expect(directionCountForRound(1)).toBe(1);
+    expect(directionCountForRound(2)).toBe(1);
   });
 
-  it("escalates to 2 directions from round 2 onward, and stays capped there", () => {
-    expect(directionCountForRound(2)).toBe(2);
+  it("escalates to 2 directions from round 3 onward, and stays capped there", () => {
     expect(directionCountForRound(3)).toBe(2);
+    expect(directionCountForRound(4)).toBe(2);
     expect(directionCountForRound(9)).toBe(2);
     expect(directionCountForRound(100)).toBe(2);
   });

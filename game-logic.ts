@@ -82,12 +82,12 @@ function shouldRegenerateWalls(round: number): boolean {
 
 const DIRECTIONS: Direction[] = ["up", "down", "left", "right"];
 
-// Round 1 attacks from 1 direction; round 2 onward attacks from 2, capped
+// Rounds 1-2 attack from 1 direction; round 3 onward attacks from 2, capped
 // there --- guaranteeing a hiding spot against 3 simultaneous directions
 // needs a wall "sandwich" on both axes at once, which general position
 // across all the walls never produces, so the escalation stops at 2.
 export function directionCountForRound(round: number): number {
-  if (round >= 2) return 2;
+  if (round >= 3) return 2;
   return 1;
 }
 
