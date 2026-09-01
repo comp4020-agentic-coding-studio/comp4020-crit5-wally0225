@@ -15,7 +15,7 @@ const DIRECTIONS: Direction[] = ["up", "down", "left", "right"];
 let boardEl: HTMLElement;
 let playerEl: HTMLElement;
 let roundEl: HTMLElement;
-let roundTimerEl: HTMLElement;
+let roundTimerFillEl: HTMLElement;
 let gameOverEl: HTMLElement;
 let roundsSurvivedEl: HTMLElement;
 const arrowEls = new Map<Direction, HTMLElement>();
@@ -25,7 +25,7 @@ const cellEls = new Map<string, HTMLElement>();
 export function initUI(walls: Wall[]): void {
   boardEl = document.querySelector<HTMLElement>("#board")!;
   roundEl = document.querySelector<HTMLElement>("#round")!;
-  roundTimerEl = document.querySelector<HTMLElement>("#round-timer")!;
+  roundTimerFillEl = document.querySelector<HTMLElement>("#round-timer-fill")!;
   gameOverEl = document.querySelector<HTMLElement>("#game-over")!;
   roundsSurvivedEl = document.querySelector<HTMLElement>("#rounds-survived")!;
 
@@ -110,11 +110,10 @@ export function render(state: GameState, now: number): void {
 
   roundEl.textContent = `Round ${state.round}`;
   const roundMs = roundDurationForRound(state.round);
-  const seconds =
-    state.phase === "gameOver"
-      ? 0
-      : Math.min(Math.floor((now - state.roundStartedAt) / 1000), roundMs / 1000 - 1);
-  roundTimerEl.textContent = `${seconds}s`;
+  const elapsed = state.phase === "gameOver" ? roundMs : now - state.roundStartedAt;
+  const remaining = Math.max(0, Math.min(1, 1 - elapsed / roundMs));
+  roundTimerFillEl.style.width = `${remaining * 100}%`;
+  roundTimerFillEl.classList.toggle("low", remaining <= 0.2);
 
   gameOverEl.hidden = state.phase !== "gameOver";
   if (state.phase === "gameOver") {

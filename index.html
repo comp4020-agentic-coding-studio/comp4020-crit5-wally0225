@@ -21,13 +21,17 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <div class="side-rail side-rail-left" aria-hidden="true"><span>SURVIVE</span></div>
+    <div class="side-rail side-rail-right" aria-hidden="true"><span>OR PERISH</span></div>
     <header>
       <nav aria-label="Primary">
         <a href="./">Pillars</a>
       </nav>
       <div class="round-status">
         <p id="round" aria-live="polite"></p>
-        <p id="round-timer" aria-live="polite"></p>
+        <div id="round-timer" class="round-timer" aria-hidden="true">
+          <div id="round-timer-fill" class="round-timer-fill"></div>
+        </div>
       </div>
     </header>
     <main>

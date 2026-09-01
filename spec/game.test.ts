@@ -306,3 +306,34 @@ describe("wall regeneration", () => {
     expect(s.walls).toEqual(walls2);
   });
 });
+
+describe("wall churn after round 10", () => {
+  it("regenerates every 5 rounds through round 10, then every single round from 11 on", () => {
+    let calls = 0;
+    const pickWalls = (): Wall[] => {
+      calls += 1;
+      return [{ col: 2, row: 2 }, { col: 4, row: 4 }];
+    };
+    let s = createInitialState({ pickDirections: () => ["up"], pickWalls, now: 0 });
+
+    for (let i = 0; i < 5; i++) s = advancePhase(s, s.roundStartedAt + roundDurationForRound(s.round));
+    expect(s.round).toBe(6);
+    expect(calls).toBe(1); // regenerated once, entering round 6
+
+    for (let i = 0; i < 4; i++) s = advancePhase(s, s.roundStartedAt + roundDurationForRound(s.round));
+    expect(s.round).toBe(10);
+    expect(calls).toBe(1); // no further regeneration through round 10
+
+    s = advancePhase(s, s.roundStartedAt + roundDurationForRound(s.round));
+    expect(s.round).toBe(11);
+    expect(calls).toBe(2); // regenerates entering round 11
+
+    s = advancePhase(s, s.roundStartedAt + roundDurationForRound(s.round));
+    expect(s.round).toBe(12);
+    expect(calls).toBe(3); // and again entering round 12
+
+    s = advancePhase(s, s.roundStartedAt + roundDurationForRound(s.round));
+    expect(s.round).toBe(13);
+    expect(calls).toBe(4); // and every round thereafter
+  });
+});

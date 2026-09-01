@@ -66,6 +66,15 @@ export function roundDurationForRound(round: number): number {
   return d.warning + d.attack + d.retract + d.buffer;
 }
 
+// Walls regenerate every 5 rounds through round 10 for variety; after round
+// 10 every single round gets a fresh layout, so the board itself keeps
+// players from settling into a memorised safe route late-game.
+const WALL_CHURN_START = 11;
+
+function shouldRegenerateWalls(round: number): boolean {
+  return round >= WALL_CHURN_START || (round - 1) % 5 === 0;
+}
+
 const DIRECTIONS: Direction[] = ["up", "down", "left", "right"];
 
 // Rounds 1-4 attack from 1 direction; round 5 onward attacks from 2,
@@ -226,7 +235,7 @@ export function advancePhase(state: GameState, now: number): GameState {
       case "buffer":
         phase = "warning";
         round += 1;
-        if ((round - 1) % 5 === 0) {
+        if (shouldRegenerateWalls(round)) {
           walls = state.pickWalls(state.player, state.n);
         }
         directions = state.pickDirections(round, walls, state.n);
