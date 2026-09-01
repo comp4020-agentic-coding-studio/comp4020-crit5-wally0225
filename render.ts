@@ -3,7 +3,7 @@
 import { travelDistance, type Direction, type Wall } from "./safe-cells.ts";
 import { ROUND_MS, WARNING_MS, type GameState } from "./game-logic.ts";
 
-const N = 5;
+const N = 7;
 const CELL_PCT = 100 / N;
 const DIRECTIONS: Direction[] = ["up", "down", "left", "right"];
 const FLASH_WINDOW_MS = 2000;

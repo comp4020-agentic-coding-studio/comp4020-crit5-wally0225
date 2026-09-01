@@ -152,7 +152,7 @@ describe("pillar collision -> game over", () => {
   it("survives a multi-direction attack when safe under every active direction", () => {
     const state = createInitialState({
       pickDirections: () => ["up", "right"],
-      player: { col: 2, row: 4 }, // b4: safe under both "up" and "right" (up∩right = {b4})
+      player: { col: 2, row: 6 }, // b6: safe under both "up" and "right" (up∩right = {b6})
       now: 0,
     });
     const attacking = { ...state, phase: "attack" as const, phaseStartedAt: 0 };

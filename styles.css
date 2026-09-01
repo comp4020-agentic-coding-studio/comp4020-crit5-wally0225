@@ -195,8 +195,8 @@ main {
   width: var(--board-size);
   height: var(--board-size);
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  grid-template-rows: repeat(5, 1fr);
+  grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: repeat(7, 1fr);
   gap: 2px;
   background: #000;
   border: 2px solid #3a3a44;
@@ -234,8 +234,8 @@ main {
 
 .player {
   position: absolute;
-  width: calc(var(--board-size) / 5 * 0.55);
-  height: calc(var(--board-size) / 5 * 0.55);
+  width: calc(var(--board-size) / 7 * 0.55);
+  height: calc(var(--board-size) / 7 * 0.55);
   background: #4dd6ff;
   border-radius: 50%;
   transform: translate(-50%, -50%);

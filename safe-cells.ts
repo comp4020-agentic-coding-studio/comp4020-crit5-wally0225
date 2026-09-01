@@ -10,7 +10,7 @@ export interface Wall {
 }
 
 export function cellId(col: number, row: number): string {
-  return `${"abcde"[col - 1]}${row}`;
+  return `${String.fromCharCode(96 + col)}${row}`;
 }
 
 // How many cells a pillar in this lane travels before it's stopped by a wall

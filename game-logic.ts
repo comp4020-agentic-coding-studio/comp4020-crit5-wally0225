@@ -118,10 +118,10 @@ export function defaultPickWalls(exclude: Position, n: number): Wall[] {
 
 const DEFAULT_WALLS: Wall[] = [
   { col: 2, row: 2 }, // b2
-  { col: 4, row: 4 }, // d4
+  { col: 6, row: 6 }, // f6
 ];
-const DEFAULT_PLAYER: Position = { col: 3, row: 3 }; // c3, exposed under every direction
-const DEFAULT_N = 5;
+const DEFAULT_PLAYER: Position = { col: 4, row: 4 }; // d4, exposed under every direction
+const DEFAULT_N = 7;
 
 export interface CreateStateOptions {
   pickDirections?: (round: number, walls: Wall[], n: number) => Direction[];
